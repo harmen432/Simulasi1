@@ -2,413 +2,490 @@
 <html lang="id">
 <head>
   <meta charset="utf-8" />
-  <title>WebAR Incline Simulation + LKPD</title>
+  <title>WebAR Doppler Simulation + LKPD</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <meta name="description" content="Simulasi: atur sudut, panjang lintasan, massa, dan katrol. Perbaikan: benda selalu terletak di atas bidang dan mengikuti rotasi bidang."/>
+  <meta name="description" content="Simulasi Efek Doppler (gelombang) interaktif + LKPD. Termasuk preview AR (jika perangkat mendukung WebXR)." />
   <style>
     :root{
-      --bg:#0b1220; --panel:#f9f9f9; --card:#0f1724; --text:#e6eef6;
+      --bg:#0b1220; --panel:#f9f9f9; --card:#0f1724; --accent:#06b6d4; --text:#e6eef6;
     }
     html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
-    /* Two-column layout */
-    .app {
-      display:flex;
-      height:100vh;
-      width:100vw;
-      overflow:hidden;
-    }
-    #lkpd {
-      width:40%;
-      min-width:320px;
-      max-width:720px;
-      overflow-y:auto;
-      padding:20px;
-      background:var(--panel);
-      color:#111;
-      box-sizing:border-box;
-      border-right:1px solid #d0d0d0;
-    }
-    #simulasi {
-      width:60%;
-      position:relative;
-      background:#000;
-      display:flex;
-      flex-direction:column;
-      box-sizing:border-box;
-      align-items:stretch;
-    }
-
-    /* UI inside simulasi (controls) */
-    #ui {
-      position: absolute;
-      left:12px;
-      top:12px;
-      z-index:30;
-      background:rgba(2,6,23,0.75);
-      padding:12px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,0.04);
-      width:320px;
-      color:var(--text);
-      font-size:0.95rem;
-      box-shadow:0 6px 20px rgba(0,0,0,0.5);
-    }
-    #ui label{display:block;font-size:0.85rem;margin-top:8px}
-    #ui input[type=range]{width:100%}
-    #ui input[type=number]{width:100%}
-    #ui button{margin-top:8px;padding:8px 10px;border-radius:8px;border:none;background:var(--card);color:var(--text);cursor:pointer}
-    #status{font-size:0.85rem;color:#a7bfd0;margin-top:8px}
-    #hint{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#cfe8f2;z-index:20}
-    /* Canvas fills simulasi area */
-    #three-container {
-      position: absolute;
-      left:0; right:0; top:0; bottom:0;
-      overflow:hidden;
-    }
-    canvas { width:100%; height:100%; display:block; }
-
-    /* LKPD content styles */
+    .app{display:flex;height:100vh;overflow:hidden}
+    #lkpd{width:40%;min-width:320px;overflow-y:auto;padding:20px;background:var(--panel);color:#111;box-sizing:border-box;border-right:1px solid #ddd}
+    #simulasi{flex:1;position:relative;background:#08121a;display:flex;flex-direction:column}
+    #controls{position:absolute;left:12px;top:12px;z-index:30;background:rgba(2,6,23,0.78);padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);width:320px;color:var(--text)}
+    #controls label{display:block;margin-top:8px;font-size:0.9rem}
+    #controls input[type=range]{width:100%}
+    #controls input[type=number]{width:100%}
+    #controls button{margin-top:8px;padding:8px 10px;border-radius:8px;border:none;background:var(--card);color:var(--text);cursor:pointer}
+    #status{margin-top:10px;font-size:0.9rem;color:#cfe8f2}
+    #canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;position:relative}
+    #simCanvas{background:#021018;border-radius:6px;max-width:100%;max-height:100%;box-shadow:0 8px 30px rgba(0,0,0,0.6)}
+    #arHint{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.03);padding:8px;border-radius:8px;color:#cfe8f2;z-index:25}
+    /* LKPD formatting */
     #lkpd h1{margin-top:0}
-    table { border-collapse:collapse; width:100%; margin-bottom:1rem; }
-    table, th, td { border:1px solid #ccc; }
-    th, td { padding:6px; text-align:center; font-size:0.9rem; }
-    pre { background:#eee; padding:8px; overflow:auto; }
+    table{border-collapse:collapse;width:100%;margin-bottom:1rem}
+    table,th,td{border:1px solid #ccc}
+    th,td{padding:6px;text-align:center}
+    pre{background:#eee;padding:8px;overflow:auto}
     @media(max-width:900px){
-      #lkpd{width:100%; height:45vh; border-right:none; border-bottom:1px solid #ddd}
-      #simulasi{width:100%; height:55vh}
       .app{flex-direction:column}
-      #ui{width:92%}
+      #lkpd{width:100%;height:45vh;border-right:none;border-bottom:1px solid #ddd}
+      #simulasi{height:55vh}
+      #controls{width:92%}
     }
   </style>
 </head>
 <body>
   <div class="app">
     <div id="lkpd">
-      <h1>LKPD – WebAR Bidang Miring dengan Katrol</h1>
+      <h1>LKPD – Efek Doppler pada Gelombang</h1>
+      <p><strong>Petunjuk:</strong> Gunakan panel kanan untuk menjalankan simulasi. Ubah parameter, amati pola gelombang, catat frekuensi teramati oleh pengamat.</p>
 
-      <h2>A. Tujuan</h2>
+      <h2>A. Tujuan Pembelajaran</h2>
+      <ol>
+        <li>Menjelaskan fenomena Efek Doppler untuk gelombang mekanik (bunyi) dan implikasinya.</li>
+        <li>Mengamati pengaruh kecepatan sumber dan pengamat terhadap frekuensi yang diterima.</li>
+        <li>Mengaitkan hasil simulasi dengan rumus teori Efek Doppler.</li>
+      </ol>
+
+      <h2>B. Alat / Bahan</h2>
       <ul>
-        <li>Menjelaskan pengaruh sudut bidang terhadap percepatan.</li>
-        <li>Menganalisis hubungan massa benda di bidang dan massa gantung.</li>
-        <li>Menentukan gaya resultan dan percepatan sistem dengan hukum Newton.</li>
-        <li>Menghubungkan hasil simulasi dengan teori.</li>
+        <li>Komputer atau smartphone (Chrome untuk AR preview pada Android).</li>
+        <li>File simulasi (halaman web ini).</li>
       </ul>
 
-      <h2>B. Petunjuk</h2>
+      <h2>C. Langkah Kerja</h2>
       <ol>
         <li>Buka simulasi di panel kanan.</li>
-        <li>Atur sudut, panjang lintasan, massa benda, dan mode katrol.</li>
-        <li>Tekan <strong>Mulai</strong> untuk menjalankan.</li>
-        <li>Catat hasil pengamatan di tabel.</li>
+        <li>Atur parameter: kecepatan sumber (v<sub>s</sub>), kecepatan pengamat (v<sub>o</sub>), frekuensi sumber (f), dan kecepatan gelombang (v).</li>
+        <li>Tekan <strong>Start</strong> dan amati pola gelombang (lingkaran) yang menjalar dari sumber bergerak.</li>
+        <li>Catat frekuensi yang teramati (ditampilkan di layar) dan bandingkan dengan perhitungan teori.</li>
       </ol>
 
-      <h2>C. Kegiatan</h2>
-      <h3>Percobaan 1 – Sudut Bidang</h3>
+      <h2>D. Data Pengamatan (contoh tabel)</h2>
       <table>
-        <tr><th>Sudut (°)</th><th>Gerak</th><th>Percepatan (m/s²)</th><th>Analisis</th></tr>
-        <tr><td>15</td><td></td><td></td><td></td></tr>
-        <tr><td>30</td><td></td><td></td><td></td></tr>
-        <tr><td>45</td><td></td><td></td><td></td></tr>
-        <tr><td>60</td><td></td><td></td><td></td></tr>
+        <tr><th>Percobaan</th><th>v<sub>s</sub> (m/s)</th><th>v<sub>o</sub> (m/s)</th><th>f (Hz)</th><th>v (m/s)</th><th>f<sub>teramati</sub> (Hz)</th></tr>
+        <tr><td>1</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>2</td><td></td><td></td><td></td><td></td><td></td></tr>
+        <tr><td>3</td><td></td><td></td><td></td><td></td><td></td></tr>
       </table>
 
-      <h3>Percobaan 2 – Sistem Katrol</h3>
-      <table>
-        <tr><th>m₂ (kg)</th><th>Arah Gerak</th><th>Percepatan (m/s²)</th><th>Analisis</th></tr>
-        <tr><td>0,5</td><td></td><td></td><td></td></tr>
-        <tr><td>1</td><td></td><td></td><td></td></tr>
-        <tr><td>1,5</td><td></td><td></td><td></td></tr>
-        <tr><td>2</td><td></td><td></td><td></td></tr>
-      </table>
+      <h2>E. Rumus Teori</h2>
+      <p>Untuk gelombang mekanik (bunyi) dalam medium diam relatif terhadap pengamat:</p>
+      <pre>
+f' = (v + v_o) / (v - v_s) * f
+      </pre>
+      <p>Dengan tanda positif jika v<sub>o</sub> menuju sumber dan v<sub>s</sub> menuju pengamat (perkiraan tanda tergantung arah).</p>
 
-      <h2>D. Pertanyaan</h2>
+      <h2>F. Pertanyaan</h2>
       <ol>
-        <li>Bagaimana pengaruh sudut kemiringan terhadap gaya gravitasi pada bidang?</li>
-        <li>Kapan benda mulai bergerak tanpa katrol? Jelaskan.</li>
-        <li>Kapan benda di bidang bergerak naik/turun pada sistem katrol?</li>
-        <li>Bandingkan hasil dengan rumus percepatan sistem:<br>
-        <pre>a = (m₂g – m₁g sinθ) / (m₁ + m₂)</pre></li>
+        <li>Bagaimana perubahan frekuensi yang diterima ketika sumber mendekat dengan kecepatan meningkat?</li>
+        <li>Jika pengamat bergerak menjauhi sumber, apa yang terjadi pada frekuensi teramati?</li>
+        <li>Bandingkan hasil simulasi dengan rumus teoritis. Berikan analisis jika ada perbedaan.</li>
       </ol>
 
-      <h2>E. Kesimpulan</h2>
-      <p>………………………………………………………………………………</p>
-      <p>………………………………………………………………………………</p>
+      <h2>G. Kesimpulan</h2>
+      <p>............................................................................................</p>
+      <p>............................................................................................</p>
     </div>
 
     <div id="simulasi">
-      <!-- Controls -->
-      <div id="ui">
-        <strong>Simulasi Bidang Miring & Katrol — Perbaikan</strong>
-        <label>Sudut (θ): <span id="angleVal">30</span>°
-          <input id="angle" type="range" min="0" max="80" step="1" value="30" />
+      <div id="controls">
+        <strong>Simulasi Efek Doppler</strong>
+        <label>Frekuensi sumber f (Hz): <span id="fVal">5</span>
+          <input id="f" type="range" min="1" max="20" step="0.5" value="5"></label>
+
+        <label>Kecepatan gelombang v (m/s): <span id="vVal">1.0</span>
+          <input id="v" type="range" min="0.5" max="5" step="0.1" value="1.0"></label>
+
+        <label>Kecepatan sumber v<sub>s</sub> (m/s): <span id="vsVal">0.0</span>
+          <input id="vs" type="range" min="-2" max="2" step="0.05" value="0.0"></label>
+
+        <label>Kecepatan pengamat v<sub>o</sub> (m/s): <span id="voVal">0.0</span>
+          <input id="vo" type="range" min="-2" max="2" step="0.05" value="0.0"></label>
+
+        <label>
+          <input id="toggleSource" type="checkbox" checked> Sumber bergerak
         </label>
-        <label>Panjang lintasan di bidang (m): <span id="pathVal">2.0</span> m
-          <input id="path" type="range" min="0.2" max="5" step="0.1" value="2.0" />
+        <label>
+          <input id="toggleObserver" type="checkbox" checked> Pengamat bergerak
         </label>
-        <label>Massa benda di bidang (m₁ kg):
-          <input id="mass1" type="number" min="0.1" step="0.1" value="1.0" />
-        </label>
-        <label>Massa benda gantung (m₂ kg):
-          <input id="mass2" type="number" min="0" step="0.1" value="0.5" />
-        </label>
-        <label><input id="usePulley" type="checkbox" checked/> Gunakan katrol & benda kedua</label>
-        <label><input id="friction" type="checkbox" /> Ada gesekan (μ = 0.1)</label>
 
         <div style="display:flex;gap:8px">
-          <button id="start">Mulai</button>
-          <button id="pause">Jeda</button>
+          <button id="start">Start</button>
+          <button id="pause">Pause</button>
           <button id="reset">Reset</button>
+          <button id="arBtn">AR Preview</button>
         </div>
 
-        <div id="status">Status: Siap</div>
-        <small style="color:#9fb7cc;display:block;margin-top:8px">Mode AR: tekan tombol AR di kanan bawah jika perangkat mendukung WebXR.</small>
+        <div id="status">
+          <div>Frekuensi terukur (numerik, berdasarkan penyeberangan gelombang): <strong id="fObs">-</strong> Hz</div>
+          <div>Frekuensi teori: <strong id="fTheory">-</strong> Hz</div>
+          <div>Catatan: penggunaan AR memerlukan perangkat yang mendukung WebXR.</div>
+        </div>
       </div>
 
-      <div id="hint">Tip: ubah sudut & massa lalu tekan Mulai.</div>
+      <div id="arHint">AR: tekan untuk melihat simulasi di dunia nyata (jika perangkat mendukung).</div>
 
-      <!-- three.js canvas container -->
-      <div id="three-container"></div>
+      <div id="canvas-wrap">
+        <canvas id="simCanvas" width="900" height="600"></canvas>
+      </div>
     </div>
   </div>
 
-  <!-- Three.js module and ARButton -->
+  <!-- Three.js untuk AR preview (opsional). Jika perangkat tidak mendukung WebXR, AR akan menampilkan pesan. -->
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
     import { ARButton } from 'https://unpkg.com/three@0.152.2/examples/jsm/webxr/ARButton.js';
 
-    // DOM
-    const container = document.getElementById('three-container');
+    // DOM references
+    const simCanvas = document.getElementById('simCanvas');
+    const ctx = simCanvas.getContext('2d', { alpha:true });
+
+    // UI elements
     const ui = {
-      angle: document.getElementById('angle'), angleVal: document.getElementById('angleVal'),
-      path: document.getElementById('path'), pathVal: document.getElementById('pathVal'),
-      mass1: document.getElementById('mass1'), mass2: document.getElementById('mass2'),
-      usePulley: document.getElementById('usePulley'), friction: document.getElementById('friction'),
-      start: document.getElementById('start'), pause: document.getElementById('pause'), reset: document.getElementById('reset'),
-      status: document.getElementById('status')
+      f: document.getElementById('f'), fVal: document.getElementById('fVal'),
+      v: document.getElementById('v'), vVal: document.getElementById('vVal'),
+      vs: document.getElementById('vs'), vsVal: document.getElementById('vsVal'),
+      vo: document.getElementById('vo'), voVal: document.getElementById('voVal'),
+      toggleSource: document.getElementById('toggleSource'),
+      toggleObserver: document.getElementById('toggleObserver'),
+      startBtn: document.getElementById('start'),
+      pauseBtn: document.getElementById('pause'),
+      resetBtn: document.getElementById('reset'),
+      arBtn: document.getElementById('arBtn'),
+      fObs: document.getElementById('fObs'),
+      fTheory: document.getElementById('fTheory'),
     };
 
-    ui.angle.addEventListener('input', ()=> ui.angleVal.textContent = ui.angle.value);
-    ui.path.addEventListener('input', ()=> ui.pathVal.textContent = ui.path.value);
-
-    // create canvas and renderer inside the container (so we don't append to body)
-    const canvas = document.createElement('canvas');
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    container.appendChild(canvas);
-
-    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias:true, alpha:true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.xr.enabled = true;
-
-    // create AR button inside #simulasi (append to container)
-    const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
-    arButton.style.position = 'absolute';
-    arButton.style.right = '12px';
-    arButton.style.bottom = '12px';
-    arButton.style.zIndex = '35';
-    container.appendChild(arButton);
-
-    // scene & camera
-    const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b1220);
-
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 100);
-    camera.position.set(0, 1.2, 3);
-
-    // lights
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
-    hemi.position.set(0,2,0); scene.add(hemi);
-    const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(3,5,2); scene.add(dir);
-
-    // ground (visual, mostly for non-AR)
-    const groundMat = new THREE.MeshStandardMaterial({ color:0x222634, metalness:0.1, roughness:0.9 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(10,10), groundMat);
-    ground.rotation.x = -Math.PI/2; ground.position.y = -0.01;
-    scene.add(ground);
-
-    // groups & objects
-    const inclineGroup = new THREE.Group(); scene.add(inclineGroup);
-    let inclinePlane = null;
-
-    const pulleyGroup = new THREE.Group(); scene.add(pulleyGroup);
-    const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.04, 16, 60), new THREE.MeshStandardMaterial({ color:0x999999, metalness:0.8, roughness:0.3 }));
-    pulley.rotation.x = Math.PI/2; pulleyGroup.add(pulley);
-
-    const mass1Mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.15,0.15), new THREE.MeshStandardMaterial({ color:0xff4444 }));
-    scene.add(mass1Mesh);
-    const mass2Mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.15,0.15), new THREE.MeshStandardMaterial({ color:0x44aaff }));
-    scene.add(mass2Mesh);
-
-    let ropeLine = null;
-    function createRope(){
-      const ropeMat = new THREE.LineBasicMaterial({ color:0xdddddd });
-      const ropeGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]);
-      if(ropeLine){ ropeLine.geometry.dispose(); scene.remove(ropeLine); ropeLine=null; }
-      ropeLine = new THREE.Line(ropeGeom, ropeMat);
-      scene.add(ropeLine);
+    // update labels
+    function updateLabels(){
+      ui.fVal.textContent = ui.f.value;
+      ui.vVal.textContent = parseFloat(ui.v.value).toFixed(2);
+      ui.vsVal.textContent = parseFloat(ui.vs.value).toFixed(2);
+      ui.voVal.textContent = parseFloat(ui.vo.value).toFixed(2);
     }
-    createRope();
-
-    // simulation state
-    let sim = {
-      running:false, t:0,
-      g:9.81,
-      theta: THREE.MathUtils.degToRad(parseFloat(ui.angle.value)),
-      path: parseFloat(ui.path.value),
-      m1: parseFloat(ui.mass1.value),
-      m2: parseFloat(ui.mass2.value),
-      usePulley: ui.usePulley.checked,
-      mu: ui.friction.checked ? 0.1 : 0.0,
-      s: 0.2, v:0.0, y:0.5, L0: undefined
-    };
-
-    // layoutScene: create plane sized to sim.path and rotated by theta
-    function layoutScene(){
-      const len = Math.max(0.2, sim.path);
-      // dispose prev plane
-      if(inclinePlane){ inclinePlane.geometry.dispose(); inclineGroup.remove(inclinePlane); inclinePlane=null; }
-      const planeGeom = new THREE.PlaneGeometry(len, 0.6, 32, 1);
-      const planeMat = new THREE.MeshStandardMaterial({ color:0xbfd6e6, metalness:0.02, roughness:0.6, side: THREE.DoubleSide });
-      inclinePlane = new THREE.Mesh(planeGeom, planeMat);
-      // position plane center above ground
-      inclinePlane.position.set(0, 0.15, 0);
-      // rotate around Z so top is left, bottom is right
-      inclinePlane.rotation.z = -sim.theta;
-      inclineGroup.add(inclinePlane);
-
-      if(sim.L0 === undefined) sim.L0 = sim.s + sim.y;
-      updateMassPositions(true);
-    }
-
-    function updateMassPositions(reset=false){
-      const len = Math.max(0.2, sim.path);
-      // local points for top and bottom on plane
-      const topLocal = new THREE.Vector3(-len/2, 0, 0);
-      const bottomLocal = new THREE.Vector3(len/2, 0, 0);
-      // convert to world
-      const topWorld = inclinePlane.localToWorld(topLocal.clone());
-      const bottomWorld = inclinePlane.localToWorld(bottomLocal.clone());
-      const dir = bottomWorld.clone().sub(topWorld).normalize();
-      const normal = new THREE.Vector3(0,0,1).applyQuaternion(inclinePlane.quaternion).normalize();
-
-      // clamp s
-      sim.s = Math.max(0, Math.min(sim.s, len));
-      const boxHeight = 0.15;
-      const mass1Pos = topWorld.clone().add(dir.clone().multiplyScalar(sim.s)).add(normal.clone().multiplyScalar(boxHeight/2 + 0.01));
-      mass1Mesh.position.copy(mass1Pos);
-      const angleZ = Math.atan2(dir.y, dir.x);
-      mass1Mesh.rotation.set(0,0,angleZ);
-
-      // pulley slightly above top
-      const pulleyOffset = normal.clone().multiplyScalar(0.18);
-      const pulleyPos = topWorld.clone().add(pulleyOffset);
-      pulleyGroup.position.copy(pulleyPos);
-
-      if(reset){
-        sim.y = Math.max(0.1, sim.y || 0.5);
-        sim.L0 = sim.s + sim.y;
-      }
-
-      // mass2 vertical down from pulley (world -Y)
-      const mass2Pos = pulleyPos.clone().add(new THREE.Vector3(0, -sim.y, 0));
-      mass2Mesh.position.copy(mass2Pos);
-
-      // rope points
-      const pts = [mass1Mesh.position.clone(), pulleyGroup.position.clone(), mass2Mesh.position.clone()];
-      ropeLine.geometry.setFromPoints(pts);
-    }
-
-    // physics step
-    function physicsStep(dt){
-      sim.theta = THREE.MathUtils.degToRad(parseFloat(ui.angle.value));
-      sim.path = parseFloat(ui.path.value);
-      sim.m1 = parseFloat(ui.mass1.value);
-      sim.m2 = parseFloat(ui.mass2.value);
-      sim.usePulley = ui.usePulley.checked;
-      sim.mu = ui.friction.checked ? 0.1 : 0.0;
-
-      if(!sim.running) return;
-      const g = sim.g;
-      let a = 0;
-      if(sim.usePulley && sim.m2 > 0){
-        const friction_term = sim.mu * sim.m1 * g * Math.cos(sim.theta) * Math.sign(sim.v || 1);
-        a = (sim.m1 * g * Math.sin(sim.theta) - friction_term - sim.m2 * g) / (sim.m1 + sim.m2);
-      }else{
-        const driving = sim.m1 * g * Math.sin(sim.theta);
-        const friction = sim.mu * sim.m1 * g * Math.cos(sim.theta);
-        if(Math.abs(driving) <= friction){ a = 0; }
-        else{ a = (driving - Math.sign(driving)*friction) / sim.m1; }
-      }
-
-      sim.v += a * dt;
-      sim.s += sim.v * dt;
-
-      if(sim.s <= 0){ sim.s = 0; sim.v = 0; sim.running = false; ui.status.textContent = 'Status: Mencapai puncak (berhenti).'; }
-      if(sim.s >= sim.path){ sim.s = sim.path; sim.v = 0; sim.running = false; ui.status.textContent = 'Status: Mencapai dasar (berhenti).'; }
-
-      if(sim.usePulley){ if(sim.L0 === undefined) sim.L0 = sim.s + (sim.y || 0.5); sim.y = Math.max(0.05, sim.L0 - sim.s); }
-
-      updateMassPositions(false);
-      ui.status.textContent = `Status: berjalan — s=${sim.s.toFixed(2)} m, v=${sim.v.toFixed(2)} m/s`;
-    }
-
-    // animation & resize handling
-    let last = performance.now();
-    function animate(now){
-      const dt = Math.min(0.05, (now - last)/1000);
-      last = now;
-      physicsStep(dt);
-      renderer.render(scene, camera);
-    }
-
-    // resize renderer & camera to container size
-    function resizeRendererToDisplaySize(){
-      const width = container.clientWidth;
-      const height = container.clientHeight;
-      const needResize = renderer.domElement.width !== Math.floor(width * renderer.getPixelRatio()) || renderer.domElement.height !== Math.floor(height * renderer.getPixelRatio());
-      if(needResize){
-        renderer.setSize(width, height, false);
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
-      }
-      return needResize;
-    }
-
-    // main loop via setAnimationLoop (compatible with WebXR)
-    renderer.setAnimationLoop((time)=>{
-      resizeRendererToDisplaySize();
-      animate(time);
+    updateLabels();
+    ['input','change'].forEach(e=> {
+      ui.f.addEventListener(e, updateLabels);
+      ui.v.addEventListener(e, updateLabels);
+      ui.vs.addEventListener(e, updateLabels);
+      ui.vo.addEventListener(e, updateLabels);
     });
 
-    // controls
-    ui.start.addEventListener('click', ()=>{ if(!sim.running){ sim.running=true; ui.status.textContent='Status: berjalan'; } });
-    ui.pause.addEventListener('click', ()=>{ sim.running=false; ui.status.textContent='Status: jeda'; });
-    ui.reset.addEventListener('click', ()=>{
-      sim.running=false; sim.t=0; sim.v=0; sim.s=0.2; sim.y=0.5; sim.L0 = sim.s + sim.y; ui.status.textContent='Status: reset. Siap.'; layoutScene();
+    // Simulation parameters & state
+    const W = simCanvas.width, H = simCanvas.height;
+    const center = { x: W/2, y: H/2 };
+    let running = false;
+    let lastTime = performance.now();
+
+    // Source and observer objects (positions in pixels; we map m -> px by scale)
+    // We'll use a scale: 1 meter = 120 pixels (adjustable)
+    const SCALE = 120;
+    function m2px(m){ return m * SCALE; }
+    function px2m(px){ return px / SCALE; }
+
+    // Initial physical positions: place source near left-mid, observer near right-mid
+    let source = { x: 2.0, y: 0, vx:0, vy:0 }; // meters relative to canvas center
+    let observer = { x: 4.0, y: 0, vx:0, vy:0 }; // meters
+    // We'll map (x meters) to canvas coordinates: canvas center corresponds to x=0,y=0
+    function toCanvas(pos){
+      return { cx: center.x + m2px(pos.x), cy: center.y - m2px(pos.y) };
+    }
+
+    // Wavefronts: array of {x,y, tEmit}
+    let wavefronts = [];
+
+    // Emission timing
+    let lastEmit = 0;
+
+    // For crossing detection we remember for each wavefront whether it has passed observer
+    // We'll compute observed frequency by counting crossings in a sliding window
+    const crossingTimestamps = []; // times (s) when a wave passes observer
+
+    // Reset simulation
+    function resetSim(){
+      wavefronts = [];
+      lastEmit = 0;
+      crossingTimestamps.length = 0;
+      source = { x: -1.5, y: 0, vx:0, vy:0 }; // meters
+      observer = { x: 2.5, y: 0, vx:0, vy:0 };
+      running = false;
+      ui.fObs.textContent = '-';
+      ui.fTheory.textContent = '-';
+      drawFrame(0);
+    }
+    resetSim();
+
+    // Convert simulation parameters
+    function params(){
+      return {
+        f: parseFloat(ui.f.value),              // Hz
+        v: parseFloat(ui.v.value),              // m/s wave speed
+        vs: parseFloat(ui.vs.value),            // m/s source (positive to the right)
+        vo: parseFloat(ui.vo.value),            // m/s observer (positive to the right)
+        sourceMoving: ui.toggleSource.checked,
+        obsMoving: ui.toggleObserver.checked
+      };
+    }
+
+    // Draw one frame (time in seconds)
+    function drawFrame(now){
+      // clear
+      ctx.clearRect(0,0,W,H);
+      // background grid subtle
+      ctx.fillStyle = '#021218';
+      ctx.fillRect(0,0,W,H);
+
+      // draw axes center
+      ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+      ctx.lineWidth = 1;
+      for(let i=-W;i<=W;i+=SCALE/2){
+        ctx.beginPath();
+        ctx.moveTo(center.x + i, 0);
+        ctx.lineTo(center.x + i, H);
+        ctx.stroke();
+      }
+
+      // draw wavefronts
+      ctx.strokeStyle = 'rgba(0,200,255,0.8)';
+      ctx.lineWidth = 2;
+      for(const wf of wavefronts){
+        const r_m = (now - wf.tEmit) * wf.v; // meters
+        if(r_m < 0) continue;
+        const r_px = m2px(r_m);
+        const pos = toCanvas({x:wf.x, y:wf.y});
+        ctx.beginPath();
+        ctx.arc(pos.cx, pos.cy, Math.max(0, r_px), 0, Math.PI*2);
+        ctx.stroke();
+      }
+
+      // draw source
+      const sPos = toCanvas(source);
+      ctx.fillStyle = '#ffcc33';
+      ctx.beginPath();
+      ctx.arc(sPos.cx, sPos.cy, 8, 0, Math.PI*2);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.fillText('Sumber', sPos.cx + 10, sPos.cy - 10);
+
+      // draw observer
+      const oPos = toCanvas(observer);
+      ctx.fillStyle = '#66ccff';
+      ctx.beginPath();
+      ctx.rect(oPos.cx-8, oPos.cy-8, 16, 16);
+      ctx.fill();
+      ctx.fillStyle = '#000';
+      ctx.fillText('Pengamat', oPos.cx + 10, oPos.cy - 10);
+
+      // indicate velocities (arrows)
+      ctx.strokeStyle = '#fff9';
+      ctx.lineWidth = 2;
+      // source velocity arrow
+      const svx = params().sourceMoving ? source.vx : 0;
+      if(Math.abs(svx) > 0.001){
+        ctx.beginPath();
+        ctx.moveTo(sPos.cx, sPos.cy + 12);
+        ctx.lineTo(sPos.cx + Math.sign(svx) * 20, sPos.cy + 12);
+        ctx.stroke();
+      }
+      // observer velocity arrow
+      const ovx = params().obsMoving ? observer.vx : 0;
+      if(Math.abs(ovx) > 0.001){
+        ctx.beginPath();
+        ctx.moveTo(oPos.cx, oPos.cy + 16);
+        ctx.lineTo(oPos.cx + Math.sign(ovx) * 20, oPos.cy + 16);
+        ctx.stroke();
+      }
+
+      // small legend
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      ctx.font = '12px sans-serif';
+      ctx.fillText(`f (sumber) = ${params().f} Hz`, 10, H - 50);
+      ctx.fillText(`v (gelombang) = ${params().v} m/s`, 10, H - 34);
+
+      // update AR texture if open
+      if(arState.open && arState.texture){
+        arState.texture.needsUpdate = true;
+      }
+    }
+
+    // Simulation loop
+    function step(nowMs){
+      const now = nowMs / 1000;
+      const dt = Math.min(0.05, Math.max(0, (now - lastTimeSec)));
+      lastTimeSec = now;
+      if(running){
+        const p = params();
+
+        // update source / observer velocities if toggled
+        if(p.sourceMoving){
+          source.vx = p.vs;
+        } else { source.vx = 0; }
+        if(p.obsMoving){
+          observer.vx = p.vo;
+        } else { observer.vx = 0; }
+
+        // move positions (1D along x)
+        source.x += source.vx * dt;
+        observer.x += observer.vx * dt;
+
+        // emit wavefronts at f (emission interval)
+        const emitInterval = 1 / p.f;
+        if(now - lastEmit >= emitInterval){
+          // push new wavefront with position at emission
+          wavefronts.push({ x: source.x, y: source.y, tEmit: now, v: p.v });
+          lastEmit = now;
+        }
+
+        // Remove wavefronts that are too big (for performance)
+        wavefronts = wavefronts.filter(wf => (now - wf.tEmit) * wf.v < 40); // 40 m radius cutoff
+
+        // crossing detection: for each wavefront, check if it crosses observer between last step and now
+        for(const wf of wavefronts){
+          const r_now = (now - wf.tEmit) * wf.v;
+          const r_prev = Math.max(0, r_now - p.v * dt);
+          const distNow = Math.hypot(observer.x - wf.x, observer.y - wf.y);
+          const distPrev = Math.hypot((observer.x - wf.x) - observer.vx * dt, observer.y - wf.y);
+          // Simpler approach: detect when wavefront radius crosses observer distance (and only count once)
+          if(!wf.crossed && distPrev > r_prev && distNow <= r_now){
+            wf.crossed = true;
+            crossingTimestamps.push(now);
+            // keep only recent crossings (last 5 seconds)
+            const cutoff = now - 5;
+            while(crossingTimestamps.length && crossingTimestamps[0] < cutoff) crossingTimestamps.shift();
+          }
+        }
+
+        // compute observed frequency from crossings (if have >=2 timestamps)
+        let fObsVal = '-';
+        if(crossingTimestamps.length >= 2){
+          // estimate last period as difference of last two timestamps (instantaneous)
+          const len = crossingTimestamps.length;
+          const dtLast = crossingTimestamps[len-1] - crossingTimestamps[len-2];
+          fObsVal = (1 / dtLast).toFixed(2);
+        }else{
+          fObsVal = '-';
+        }
+        ui.fObs.textContent = fObsVal;
+
+        // theoretical frequency using formula f' = (v + vo)/(v - vs) * f  (sign convention: vs positive to right reduces denominator)
+        // We use signs: if source moving towards observer (i.e., vs positive and source->observer direction aligned), formula applies.
+        // For 1D with positions: relative sign determined by direction from source to observer.
+        const f_src = p.f;
+        const v_wave = p.v;
+        // Determine direction: source->observer vector
+        const dirSO = Math.sign(observer.x - source.x) || 1; // +1 observer to right of source
+        // component of vs along line toward observer: vs_proj = vs * dirSO
+        const vs_proj = p.vs * dirSO;
+        const vo_proj = p.vo * dirSO;
+        // avoid division by zero
+        let fTheoryVal = '-';
+        if(Math.abs(v_wave - vs_proj) > 1e-6){
+          fTheoryVal = ((v_wave + vo_proj) / (v_wave - vs_proj) * f_src).toFixed(2);
+        }
+        ui.fTheory.textContent = fTheoryVal;
+
+      }
+      drawFrame(now);
+      // next frame
+      rafHandle = requestAnimationFrame(step);
+    }
+
+    // control handlers
+    ui.startBtn.addEventListener('click', ()=>{
+      running = true;
+      lastEmit = lastTimeSec;
+    });
+    ui.pauseBtn.addEventListener('click', ()=> running = false);
+    ui.resetBtn.addEventListener('click', ()=> resetSim());
+
+    // initial draw
+    let lastTimeSec = performance.now() / 1000;
+    let rafHandle = requestAnimationFrame(step);
+    drawFrame(lastTimeSec);
+
+    /* ----------------------------
+       AR preview using three.js
+       - We create a scene with a plane whose material uses a CanvasTexture from simCanvas.
+       - ARButton presented; on entering AR the plane can be placed in real world.
+       ---------------------------- */
+    const arState = { open:false, renderer:null, scene:null, camera:null, texture:null };
+
+    ui.arBtn.addEventListener('click', async ()=>{
+      // Initialize AR (only once)
+      if(arState.open) return;
+      try{
+        // create renderer
+        const arRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+        arRenderer.setSize(400, 300);
+        arRenderer.xr.enabled = true;
+
+        // create AR scene
+        const arScene = new THREE.Scene();
+        const arCamera = new THREE.PerspectiveCamera();
+
+        // ambient
+        arScene.add(new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1.0));
+
+        // plane geometry to display the canvas texture
+        const planeGeo = new THREE.PlaneGeometry(1.6, 1.0); // meters (approx)
+        const canvasTexture = new THREE.CanvasTexture(simCanvas);
+        canvasTexture.encoding = THREE.sRGBEncoding;
+        const planeMat = new THREE.MeshBasicMaterial({ map: canvasTexture, side: THREE.DoubleSide });
+        const planeMesh = new THREE.Mesh(planeGeo, planeMat);
+        planeMesh.position.set(0, 0, -1.0);
+
+        arScene.add(planeMesh);
+
+        // AR button and session
+        const arBtn = ARButton.createButton(arRenderer, { requiredFeatures: ['hit-test'] });
+        document.body.appendChild(arBtn);
+
+        // When session starts we place the plane in front of the camera initially
+        arRenderer.xr.addEventListener('sessionstart', ()=> {
+          arState.open = true;
+        });
+
+        // mount renderer DOM inside a small overlay so user can see preview while waiting for placement
+        const overlay = document.createElement('div');
+        overlay.style.position = 'fixed';
+        overlay.style.right = '12px';
+        overlay.style.bottom = '12px';
+        overlay.style.zIndex = '9999';
+        overlay.style.width = '220px';
+        overlay.style.height = '140px';
+        overlay.style.boxShadow = '0 8px 20px rgba(0,0,0,0.6)';
+        overlay.style.borderRadius = '8px';
+        overlay.style.overflow = 'hidden';
+        overlay.appendChild(arRenderer.domElement);
+        document.body.appendChild(overlay);
+
+        // animate AR render loop
+        function arLoop(){
+          if(canvasTexture) canvasTexture.needsUpdate = true;
+          arRenderer.render(arScene, arCamera);
+        }
+        arRenderer.setAnimationLoop(arLoop);
+
+        arState.renderer = arRenderer;
+        arState.scene = arScene;
+        arState.camera = arCamera;
+        arState.texture = canvasTexture;
+
+        // Inform user
+        alert('AR preview siap. Jika perangkat Anda mendukung WebXR, tekan tombol AR (yang muncul) untuk memasuki mode AR dan letakkan simulasi pada permukaan nyata.');
+      }catch(err){
+        console.error('AR init failed', err);
+        alert('AR tidak tersedia atau gagal diinisialisasi pada perangkat ini. Anda masih bisa menggunakan simulasi biasa pada halaman ini.');
+      }
     });
 
-    // respond to UI toggles (visibility)
-    ui.usePulley.addEventListener('change', ()=>{ pulleyGroup.visible = ui.usePulley.checked; mass2Mesh.visible = ui.usePulley.checked; ropeLine.visible = ui.usePulley.checked; });
-    pulleyGroup.visible = ui.usePulley.checked; mass2Mesh.visible = ui.usePulley.checked; ropeLine.visible = ui.usePulley.checked;
-
-    // initialize
-    layoutScene();
-
-    // ensure camera initial framing fits the scene (adjust camera distance based on path)
-    function adjustCameraForPath(){
-      const len = Math.max(0.5, sim.path);
-      camera.position.set(len*0.6, Math.max(1.2, len*0.35), len*1.0);
-      camera.lookAt(0,0,0);
-    }
-    adjustCameraForPath();
-
-    // update layout when UI changes that affect geometry
-    ui.path.addEventListener('input', ()=>{ sim.path = parseFloat(ui.path.value); layoutScene(); adjustCameraForPath(); });
-    ui.angle.addEventListener('input', ()=>{ sim.theta = THREE.MathUtils.degToRad(parseFloat(ui.angle.value)); layoutScene(); });
-
-    // handle window resize once initially
-    window.addEventListener('resize', ()=>{ resizeRendererToDisplaySize(); });
-    resizeRendererToDisplaySize();
+    // Clean-up on page unload
+    window.addEventListener('beforeunload', ()=> {
+      cancelAnimationFrame(rafHandle);
+    });
   </script>
 </body>
 </html>
