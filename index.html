@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>WebAR Incline Simulation + LKPD</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="description" content="Simulasi: atur sudut, panjang lintasan, massa, dan katrol. Perbaikan: benda selalu terletak di atas bidang dan mengikuti rotasi bidang."/>
+  <style>
+    :root{
+      --bg:#0b1220; --panel:#f9f9f9; --card:#0f1724; --text:#e6eef6;
+    }
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--text)}
+    /* Two-column layout */
+    .app {
+      display:flex;
+      height:100vh;
+      width:100vw;
+      overflow:hidden;
+    }
+    #lkpd {
+      width:40%;
+      min-width:320px;
+      max-width:720px;
+      overflow-y:auto;
+      padding:20px;
+      background:var(--panel);
+      color:#111;
+      box-sizing:border-box;
+      border-right:1px solid #d0d0d0;
+    }
+    #simulasi {
+      width:60%;
+      position:relative;
+      background:#000;
+      display:flex;
+      flex-direction:column;
+      box-sizing:border-box;
+      align-items:stretch;
+    }
+
+    /* UI inside simulasi (controls) */
+    #ui {
+      position: absolute;
+      left:12px;
+      top:12px;
+      z-index:30;
+      background:rgba(2,6,23,0.75);
+      padding:12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.04);
+      width:320px;
+      color:var(--text);
+      font-size:0.95rem;
+      box-shadow:0 6px 20px rgba(0,0,0,0.5);
+    }
+    #ui label{display:block;font-size:0.85rem;margin-top:8px}
+    #ui input[type=range]{width:100%}
+    #ui input[type=number]{width:100%}
+    #ui button{margin-top:8px;padding:8px 10px;border-radius:8px;border:none;background:var(--card);color:var(--text);cursor:pointer}
+    #status{font-size:0.85rem;color:#a7bfd0;margin-top:8px}
+    #hint{position:absolute;right:12px;top:12px;background:rgba(255,255,255,0.04);padding:8px;border-radius:8px;color:#cfe8f2;z-index:20}
+    /* Canvas fills simulasi area */
+    #three-container {
+      position: absolute;
+      left:0; right:0; top:0; bottom:0;
+      overflow:hidden;
+    }
+    canvas { width:100%; height:100%; display:block; }
+
+    /* LKPD content styles */
+    #lkpd h1{margin-top:0}
+    table { border-collapse:collapse; width:100%; margin-bottom:1rem; }
+    table, th, td { border:1px solid #ccc; }
+    th, td { padding:6px; text-align:center; font-size:0.9rem; }
+    pre { background:#eee; padding:8px; overflow:auto; }
+    @media(max-width:900px){
+      #lkpd{width:100%; height:45vh; border-right:none; border-bottom:1px solid #ddd}
+      #simulasi{width:100%; height:55vh}
+      .app{flex-direction:column}
+      #ui{width:92%}
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div id="lkpd">
+      <h1>LKPD – WebAR Bidang Miring dengan Katrol</h1>
+
+      <h2>A. Tujuan</h2>
+      <ul>
+        <li>Menjelaskan pengaruh sudut bidang terhadap percepatan.</li>
+        <li>Menganalisis hubungan massa benda di bidang dan massa gantung.</li>
+        <li>Menentukan gaya resultan dan percepatan sistem dengan hukum Newton.</li>
+        <li>Menghubungkan hasil simulasi dengan teori.</li>
+      </ul>
+
+      <h2>B. Petunjuk</h2>
+      <ol>
+        <li>Buka simulasi di panel kanan.</li>
+        <li>Atur sudut, panjang lintasan, massa benda, dan mode katrol.</li>
+        <li>Tekan <strong>Mulai</strong> untuk menjalankan.</li>
+        <li>Catat hasil pengamatan di tabel.</li>
+      </ol>
+
+      <h2>C. Kegiatan</h2>
+      <h3>Percobaan 1 – Sudut Bidang</h3>
+      <table>
+        <tr><th>Sudut (°)</th><th>Gerak</th><th>Percepatan (m/s²)</th><th>Analisis</th></tr>
+        <tr><td>15</td><td></td><td></td><td></td></tr>
+        <tr><td>30</td><td></td><td></td><td></td></tr>
+        <tr><td>45</td><td></td><td></td><td></td></tr>
+        <tr><td>60</td><td></td><td></td><td></td></tr>
+      </table>
+
+      <h3>Percobaan 2 – Sistem Katrol</h3>
+      <table>
+        <tr><th>m₂ (kg)</th><th>Arah Gerak</th><th>Percepatan (m/s²)</th><th>Analisis</th></tr>
+        <tr><td>0,5</td><td></td><td></td><td></td></tr>
+        <tr><td>1</td><td></td><td></td><td></td></tr>
+        <tr><td>1,5</td><td></td><td></td><td></td></tr>
+        <tr><td>2</td><td></td><td></td><td></td></tr>
+      </table>
+
+      <h2>D. Pertanyaan</h2>
+      <ol>
+        <li>Bagaimana pengaruh sudut kemiringan terhadap gaya gravitasi pada bidang?</li>
+        <li>Kapan benda mulai bergerak tanpa katrol? Jelaskan.</li>
+        <li>Kapan benda di bidang bergerak naik/turun pada sistem katrol?</li>
+        <li>Bandingkan hasil dengan rumus percepatan sistem:<br>
+        <pre>a = (m₂g – m₁g sinθ) / (m₁ + m₂)</pre></li>
+      </ol>
+
+      <h2>E. Kesimpulan</h2>
+      <p>………………………………………………………………………………</p>
+      <p>………………………………………………………………………………</p>
+    </div>
+
+    <div id="simulasi">
+      <!-- Controls -->
+      <div id="ui">
+        <strong>Simulasi Bidang Miring & Katrol — Perbaikan</strong>
+        <label>Sudut (θ): <span id="angleVal">30</span>°
+          <input id="angle" type="range" min="0" max="80" step="1" value="30" />
+        </label>
+        <label>Panjang lintasan di bidang (m): <span id="pathVal">2.0</span> m
+          <input id="path" type="range" min="0.2" max="5" step="0.1" value="2.0" />
+        </label>
+        <label>Massa benda di bidang (m₁ kg):
+          <input id="mass1" type="number" min="0.1" step="0.1" value="1.0" />
+        </label>
+        <label>Massa benda gantung (m₂ kg):
+          <input id="mass2" type="number" min="0" step="0.1" value="0.5" />
+        </label>
+        <label><input id="usePulley" type="checkbox" checked/> Gunakan katrol & benda kedua</label>
+        <label><input id="friction" type="checkbox" /> Ada gesekan (μ = 0.1)</label>
+
+        <div style="display:flex;gap:8px">
+          <button id="start">Mulai</button>
+          <button id="pause">Jeda</button>
+          <button id="reset">Reset</button>
+        </div>
+
+        <div id="status">Status: Siap</div>
+        <small style="color:#9fb7cc;display:block;margin-top:8px">Mode AR: tekan tombol AR di kanan bawah jika perangkat mendukung WebXR.</small>
+      </div>
+
+      <div id="hint">Tip: ubah sudut & massa lalu tekan Mulai.</div>
+
+      <!-- three.js canvas container -->
+      <div id="three-container"></div>
+    </div>
+  </div>
+
+  <!-- Three.js module and ARButton -->
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.152.2/build/three.module.js';
+    import { ARButton } from 'https://unpkg.com/three@0.152.2/examples/jsm/webxr/ARButton.js';
+
+    // DOM
+    const container = document.getElementById('three-container');
+    const ui = {
+      angle: document.getElementById('angle'), angleVal: document.getElementById('angleVal'),
+      path: document.getElementById('path'), pathVal: document.getElementById('pathVal'),
+      mass1: document.getElementById('mass1'), mass2: document.getElementById('mass2'),
+      usePulley: document.getElementById('usePulley'), friction: document.getElementById('friction'),
+      start: document.getElementById('start'), pause: document.getElementById('pause'), reset: document.getElementById('reset'),
+      status: document.getElementById('status')
+    };
+
+    ui.angle.addEventListener('input', ()=> ui.angleVal.textContent = ui.angle.value);
+    ui.path.addEventListener('input', ()=> ui.pathVal.textContent = ui.path.value);
+
+    // create canvas and renderer inside the container (so we don't append to body)
+    const canvas = document.createElement('canvas');
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    container.appendChild(canvas);
+
+    const renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias:true, alpha:true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.xr.enabled = true;
+
+    // create AR button inside #simulasi (append to container)
+    const arButton = ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] });
+    arButton.style.position = 'absolute';
+    arButton.style.right = '12px';
+    arButton.style.bottom = '12px';
+    arButton.style.zIndex = '35';
+    container.appendChild(arButton);
+
+    // scene & camera
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1220);
+
+    const camera = new THREE.PerspectiveCamera(60, 1, 0.01, 100);
+    camera.position.set(0, 1.2, 3);
+
+    // lights
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 1.0);
+    hemi.position.set(0,2,0); scene.add(hemi);
+    const dir = new THREE.DirectionalLight(0xffffff, 0.6); dir.position.set(3,5,2); scene.add(dir);
+
+    // ground (visual, mostly for non-AR)
+    const groundMat = new THREE.MeshStandardMaterial({ color:0x222634, metalness:0.1, roughness:0.9 });
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(10,10), groundMat);
+    ground.rotation.x = -Math.PI/2; ground.position.y = -0.01;
+    scene.add(ground);
+
+    // groups & objects
+    const inclineGroup = new THREE.Group(); scene.add(inclineGroup);
+    let inclinePlane = null;
+
+    const pulleyGroup = new THREE.Group(); scene.add(pulleyGroup);
+    const pulley = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.04, 16, 60), new THREE.MeshStandardMaterial({ color:0x999999, metalness:0.8, roughness:0.3 }));
+    pulley.rotation.x = Math.PI/2; pulleyGroup.add(pulley);
+
+    const mass1Mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.15,0.15), new THREE.MeshStandardMaterial({ color:0xff4444 }));
+    scene.add(mass1Mesh);
+    const mass2Mesh = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.15,0.15), new THREE.MeshStandardMaterial({ color:0x44aaff }));
+    scene.add(mass2Mesh);
+
+    let ropeLine = null;
+    function createRope(){
+      const ropeMat = new THREE.LineBasicMaterial({ color:0xdddddd });
+      const ropeGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]);
+      if(ropeLine){ ropeLine.geometry.dispose(); scene.remove(ropeLine); ropeLine=null; }
+      ropeLine = new THREE.Line(ropeGeom, ropeMat);
+      scene.add(ropeLine);
+    }
+    createRope();
+
+    // simulation state
+    let sim = {
+      running:false, t:0,
+      g:9.81,
+      theta: THREE.MathUtils.degToRad(parseFloat(ui.angle.value)),
+      path: parseFloat(ui.path.value),
+      m1: parseFloat(ui.mass1.value),
+      m2: parseFloat(ui.mass2.value),
+      usePulley: ui.usePulley.checked,
+      mu: ui.friction.checked ? 0.1 : 0.0,
+      s: 0.2, v:0.0, y:0.5, L0: undefined
+    };
+
+    // layoutScene: create plane sized to sim.path and rotated by theta
+    function layoutScene(){
+      const len = Math.max(0.2, sim.path);
+      // dispose prev plane
+      if(inclinePlane){ inclinePlane.geometry.dispose(); inclineGroup.remove(inclinePlane); inclinePlane=null; }
+      const planeGeom = new THREE.PlaneGeometry(len, 0.6, 32, 1);
+      const planeMat = new THREE.MeshStandardMaterial({ color:0xbfd6e6, metalness:0.02, roughness:0.6, side: THREE.DoubleSide });
+      inclinePlane = new THREE.Mesh(planeGeom, planeMat);
+      // position plane center above ground
+      inclinePlane.position.set(0, 0.15, 0);
+      // rotate around Z so top is left, bottom is right
+      inclinePlane.rotation.z = -sim.theta;
+      inclineGroup.add(inclinePlane);
+
+      if(sim.L0 === undefined) sim.L0 = sim.s + sim.y;
+      updateMassPositions(true);
+    }
+
+    function updateMassPositions(reset=false){
+      const len = Math.max(0.2, sim.path);
+      // local points for top and bottom on plane
+      const topLocal = new THREE.Vector3(-len/2, 0, 0);
+      const bottomLocal = new THREE.Vector3(len/2, 0, 0);
+      // convert to world
+      const topWorld = inclinePlane.localToWorld(topLocal.clone());
+      const bottomWorld = inclinePlane.localToWorld(bottomLocal.clone());
+      const dir = bottomWorld.clone().sub(topWorld).normalize();
+      const normal = new THREE.Vector3(0,0,1).applyQuaternion(inclinePlane.quaternion).normalize();
+
+      // clamp s
+      sim.s = Math.max(0, Math.min(sim.s, len));
+      const boxHeight = 0.15;
+      const mass1Pos = topWorld.clone().add(dir.clone().multiplyScalar(sim.s)).add(normal.clone().multiplyScalar(boxHeight/2 + 0.01));
+      mass1Mesh.position.copy(mass1Pos);
+      const angleZ = Math.atan2(dir.y, dir.x);
+      mass1Mesh.rotation.set(0,0,angleZ);
+
+      // pulley slightly above top
+      const pulleyOffset = normal.clone().multiplyScalar(0.18);
+      const pulleyPos = topWorld.clone().add(pulleyOffset);
+      pulleyGroup.position.copy(pulleyPos);
+
+      if(reset){
+        sim.y = Math.max(0.1, sim.y || 0.5);
+        sim.L0 = sim.s + sim.y;
+      }
+
+      // mass2 vertical down from pulley (world -Y)
+      const mass2Pos = pulleyPos.clone().add(new THREE.Vector3(0, -sim.y, 0));
+      mass2Mesh.position.copy(mass2Pos);
+
+      // rope points
+      const pts = [mass1Mesh.position.clone(), pulleyGroup.position.clone(), mass2Mesh.position.clone()];
+      ropeLine.geometry.setFromPoints(pts);
+    }
+
+    // physics step
+    function physicsStep(dt){
+      sim.theta = THREE.MathUtils.degToRad(parseFloat(ui.angle.value));
+      sim.path = parseFloat(ui.path.value);
+      sim.m1 = parseFloat(ui.mass1.value);
+      sim.m2 = parseFloat(ui.mass2.value);
+      sim.usePulley = ui.usePulley.checked;
+      sim.mu = ui.friction.checked ? 0.1 : 0.0;
+
+      if(!sim.running) return;
+      const g = sim.g;
+      let a = 0;
+      if(sim.usePulley && sim.m2 > 0){
+        const friction_term = sim.mu * sim.m1 * g * Math.cos(sim.theta) * Math.sign(sim.v || 1);
+        a = (sim.m1 * g * Math.sin(sim.theta) - friction_term - sim.m2 * g) / (sim.m1 + sim.m2);
+      }else{
+        const driving = sim.m1 * g * Math.sin(sim.theta);
+        const friction = sim.mu * sim.m1 * g * Math.cos(sim.theta);
+        if(Math.abs(driving) <= friction){ a = 0; }
+        else{ a = (driving - Math.sign(driving)*friction) / sim.m1; }
+      }
+
+      sim.v += a * dt;
+      sim.s += sim.v * dt;
+
+      if(sim.s <= 0){ sim.s = 0; sim.v = 0; sim.running = false; ui.status.textContent = 'Status: Mencapai puncak (berhenti).'; }
+      if(sim.s >= sim.path){ sim.s = sim.path; sim.v = 0; sim.running = false; ui.status.textContent = 'Status: Mencapai dasar (berhenti).'; }
+
+      if(sim.usePulley){ if(sim.L0 === undefined) sim.L0 = sim.s + (sim.y || 0.5); sim.y = Math.max(0.05, sim.L0 - sim.s); }
+
+      updateMassPositions(false);
+      ui.status.textContent = `Status: berjalan — s=${sim.s.toFixed(2)} m, v=${sim.v.toFixed(2)} m/s`;
+    }
+
+    // animation & resize handling
+    let last = performance.now();
+    function animate(now){
+      const dt = Math.min(0.05, (now - last)/1000);
+      last = now;
+      physicsStep(dt);
+      renderer.render(scene, camera);
+    }
+
+    // resize renderer & camera to container size
+    function resizeRendererToDisplaySize(){
+      const width = container.clientWidth;
+      const height = container.clientHeight;
+      const needResize = renderer.domElement.width !== Math.floor(width * renderer.getPixelRatio()) || renderer.domElement.height !== Math.floor(height * renderer.getPixelRatio());
+      if(needResize){
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+      }
+      return needResize;
+    }
+
+    // main loop via setAnimationLoop (compatible with WebXR)
+    renderer.setAnimationLoop((time)=>{
+      resizeRendererToDisplaySize();
+      animate(time);
+    });
+
+    // controls
+    ui.start.addEventListener('click', ()=>{ if(!sim.running){ sim.running=true; ui.status.textContent='Status: berjalan'; } });
+    ui.pause.addEventListener('click', ()=>{ sim.running=false; ui.status.textContent='Status: jeda'; });
+    ui.reset.addEventListener('click', ()=>{
+      sim.running=false; sim.t=0; sim.v=0; sim.s=0.2; sim.y=0.5; sim.L0 = sim.s + sim.y; ui.status.textContent='Status: reset. Siap.'; layoutScene();
+    });
+
+    // respond to UI toggles (visibility)
+    ui.usePulley.addEventListener('change', ()=>{ pulleyGroup.visible = ui.usePulley.checked; mass2Mesh.visible = ui.usePulley.checked; ropeLine.visible = ui.usePulley.checked; });
+    pulleyGroup.visible = ui.usePulley.checked; mass2Mesh.visible = ui.usePulley.checked; ropeLine.visible = ui.usePulley.checked;
+
+    // initialize
+    layoutScene();
+
+    // ensure camera initial framing fits the scene (adjust camera distance based on path)
+    function adjustCameraForPath(){
+      const len = Math.max(0.5, sim.path);
+      camera.position.set(len*0.6, Math.max(1.2, len*0.35), len*1.0);
+      camera.lookAt(0,0,0);
+    }
+    adjustCameraForPath();
+
+    // update layout when UI changes that affect geometry
+    ui.path.addEventListener('input', ()=>{ sim.path = parseFloat(ui.path.value); layoutScene(); adjustCameraForPath(); });
+    ui.angle.addEventListener('input', ()=>{ sim.theta = THREE.MathUtils.degToRad(parseFloat(ui.angle.value)); layoutScene(); });
+
+    // handle window resize once initially
+    window.addEventListener('resize', ()=>{ resizeRendererToDisplaySize(); });
+    resizeRendererToDisplaySize();
+  </script>
+</body>
+</html>
